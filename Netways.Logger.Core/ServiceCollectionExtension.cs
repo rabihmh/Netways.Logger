@@ -17,10 +17,16 @@ public static class ServiceCollectionExtension
         services.AddSingleton<Func<IHttpContextAccessor>>(sp =>
                 () => sp.GetRequiredService<IHttpContextAccessor>());
 
-        services.AddSingleton<HttpContextEnricher>();
+        // Register individual enrichers
+        RegisterEnricherServices(services);
 
+        // Register the composite enricher as the main enricher
         services.AddSingleton<ILogEventEnricher>(sp =>
-            sp.GetRequiredService<HttpContextEnricher>());
+        {
+            var enrichers = sp.GetServices<ILogEnricher>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<CompositeEnricher>>();
+            return new CompositeEnricher(enrichers, logger);
+        });
 
         services.AddSingleton<ILoggerConfig, LoggerConfig>();
 
@@ -40,6 +46,54 @@ public static class ServiceCollectionExtension
     public static LoggerBuilder CreateLoggerBuilderWithServices(IServiceProvider serviceProvider)
     {
         return new LoggerBuilder().WithServiceProvider(serviceProvider);
+    }
+
+    /// <summary>
+    /// Registers all enricher-related services
+    /// </summary>
+    private static void RegisterEnricherServices(IServiceCollection services)
+    {
+        // Register individual enrichers
+        services.AddSingleton<ILogEnricher, HttpContextEnricher>(sp =>
+        {
+            var httpContextAccessorFactory = sp.GetRequiredService<Func<IHttpContextAccessor>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<BaseEnricher>>();
+            return new HttpContextEnricher(
+                httpContextAccessorFactory,
+                logger,
+                includeRequestHeaders: false,    // Can be configured via appsettings
+                includeResponseHeaders: false,
+                includeQueryString: true,
+                includeUserAgent: true
+            );
+        });
+
+        services.AddSingleton<ILogEnricher, EnvironmentEnricher>(sp =>
+        {
+            var configuration = sp.GetService<IConfiguration>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<BaseEnricher>>();
+            return new EnvironmentEnricher(
+                configuration,
+                logger: logger,
+                includeSystemInfo: true,         // Can be configured via appsettings
+                includeProcessInfo: true
+            );
+        });
+
+        services.AddSingleton<ILogEnricher, CorrelationEnricher>(sp =>
+        {
+            var httpContextAccessorFactory = sp.GetService<Func<IHttpContextAccessor>>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<BaseEnricher>>();
+            return new CorrelationEnricher(
+                httpContextAccessorFactory,
+                logger: logger,
+                generateIfMissing: true,         // Can be configured via appsettings
+                includeTraceInfo: true
+            );
+        });
+
+        // Register the composite enricher manager
+        services.AddSingleton<CompositeEnricher>();
     }
 
     /// <summary>

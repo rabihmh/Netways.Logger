@@ -5,116 +5,68 @@ using Microsoft.Extensions.DependencyInjection;
 using Netways.Logger.Core.Enrichers;
 using Netways.Logger.Core.Formatters;
 using Netways.Logger.Model.Configurations;
+using Serilog;
 using Serilog.Core;
 
 namespace Netways.Logger.Core;
 
 public static class ServiceCollectionExtension
 {
-    public static LoggerBuilder AddLoggerServices(this IServiceCollection services)
+    public static IServiceCollection AddNetwaysLogger(this IServiceCollection services, IConfiguration configuration)
     {
-        // Core dependencies
-        services.AddSingleton<Func<IHttpContextAccessor>>(sp =>
-                () => sp.GetRequiredService<IHttpContextAccessor>());
-
-        // Register individual enrichers
-        RegisterEnricherServices(services);
-
-        // Register the composite enricher as the main enricher
-        services.AddSingleton<ILogEventEnricher>(sp =>
-        {
-            var enrichers = sp.GetServices<ILogEnricher>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<CompositeEnricher>>();
-            return new CompositeEnricher(enrichers, logger);
-        });
-
+        // Register core dependencies
+        services.AddHttpContextAccessor();
         services.AddSingleton<ILoggerConfig, LoggerConfig>();
-
         services.AddSingleton<ILogger, Logger>();
-
-        // Register all formatter components for structured logging
-        RegisterFormatterServices(services);
-
-        return new LoggerBuilder();
-    }
-
-    /// <summary>
-    /// Creates a LoggerBuilder with access to the service provider for dependency injection
-    /// </summary>
-    /// <param name="serviceProvider">The service provider containing registered services</param>
-    /// <returns>Configured LoggerBuilder</returns>
-    public static LoggerBuilder CreateLoggerBuilderWithServices(IServiceProvider serviceProvider)
-    {
-        return new LoggerBuilder().WithServiceProvider(serviceProvider);
-    }
-
-    /// <summary>
-    /// Registers all enricher-related services
-    /// </summary>
-    private static void RegisterEnricherServices(IServiceCollection services)
-    {
-        // Register individual enrichers
-        services.AddSingleton<ILogEnricher, HttpContextEnricher>(sp =>
-        {
-            var httpContextAccessorFactory = sp.GetRequiredService<Func<IHttpContextAccessor>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<BaseEnricher>>();
-            return new HttpContextEnricher(
-                httpContextAccessorFactory,
-                logger,
-                includeRequestHeaders: false,    // Can be configured via appsettings
-                includeResponseHeaders: false,
-                includeQueryString: true,
-                includeUserAgent: true
-            );
-        });
-
-        services.AddSingleton<ILogEnricher, EnvironmentEnricher>(sp =>
-        {
-            var configuration = sp.GetService<IConfiguration>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<BaseEnricher>>();
-            return new EnvironmentEnricher(
-                configuration,
-                logger: logger,
-                includeSystemInfo: true,         // Can be configured via appsettings
-                includeProcessInfo: true
-            );
-        });
-
-        services.AddSingleton<ILogEnricher, CorrelationEnricher>(sp =>
-        {
-            var httpContextAccessorFactory = sp.GetService<Func<IHttpContextAccessor>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<BaseEnricher>>();
-            return new CorrelationEnricher(
-                httpContextAccessorFactory,
-                logger: logger,
-                generateIfMissing: true,         // Can be configured via appsettings
-                includeTraceInfo: true
-            );
-        });
-
-        // Register the composite enricher manager
-        services.AddSingleton<CompositeEnricher>();
-    }
-
-    /// <summary>
-    /// Registers all formatter-related services for structured logging
-    /// </summary>
-    private static void RegisterFormatterServices(IServiceCollection services)
-    {
-        // Register individual formatters
-        services.AddSingleton<ExceptionLogFormatter>();
-        services.AddSingleton<RequestLogFormatter>();
-        services.AddSingleton<DefaultLogFormatter>();
-
-        // Register the formatter manager
-        services.AddSingleton<LogFormatterManager>();
-
-        // Register the enhanced SerilogFileFormatter
         services.AddSingleton<SerilogFileFormatter>();
+
+        // Configure Serilog with standard configuration
+        ConfigureSerilog(services, configuration);
+
+        return services;
     }
 
-    public static void AddLoggerApplications(this IApplicationBuilder app,IConfiguration configuration)
+    private static void ConfigureSerilog(IServiceCollection services, IConfiguration configuration)
     {
+        var serviceProvider = services.BuildServiceProvider();
+        var fileFormatter = serviceProvider.GetRequiredService<SerilogFileFormatter>();
+
+        // Set up service locator for enrichers
+        ServiceLocator.ServiceProvider = serviceProvider;
+
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(configuration)
+            .Enrich.With<HttpContextEnricher>()
+            .Enrich.With<CorrelationEnricher>()
+            .WriteTo.File(
+                path: "D:\\Netways\\APILogs\\log-.txt",
+                formatter: fileFormatter,
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 30)
+            .WriteTo.Seq("http://localhost:5341")
+            .CreateLogger();
+
+        services.AddSingleton<Serilog.ILogger>(Log.Logger);
+    }
+
+    public static void UseNetwaysLogger(this IApplicationBuilder app, IConfiguration configuration)
+    {
+        // Set up service locator for runtime
+        ServiceLocator.ServiceProvider = app.ApplicationServices;
+
+        // Load logger configuration
         app.ApplicationServices.GetRequiredService<ILoggerConfig>().Load(configuration);
+
+        // Add simple correlation ID middleware
+        app.Use(async (context, next) =>
+        {
+            var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault() 
+                               ?? Guid.NewGuid().ToString();
+            
+            context.Items["CorrelationId"] = correlationId;
+            context.Response.Headers["X-Correlation-Id"] = correlationId;
+            
+            await next();
+        });
     }
 }

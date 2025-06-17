@@ -1,0 +1,20 @@
+This is a sample test file for testing file upload logging functionality.
+
+It contains multiple lines of text to demonstrate:
+- File content logging
+- File size monitoring
+- Upload progress tracking
+- Multipart form data handling
+
+The file is designed to be used with the /api/LoggingTest/upload endpoint
+to validate that file uploads are properly logged with all relevant metadata.
+
+Test data:
+- File size: Small (< 1KB)
+- Content type: text/plain
+- Purpose: Logging validation
+
+This file can be uploaded using curl:
+curl -X POST "https://localhost:7xxx/api/LoggingTest/upload" \
+     -F "file=@test-file.txt" \
+     -F "description=Test file upload" 

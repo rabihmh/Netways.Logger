@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Netways.Logger.Core", "Netw
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Netways.Logger.Model", "Netways.Logger.Model\Netways.Logger.Model.csproj", "{B2BC6924-7463-415C-B6D9-4C70F380275A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Netways.Logger.Test", "Netways.Logger.Test\Netways.Logger.Test.csproj", "{30CE362D-7DAF-4B86-982B-F74D5E815DBE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{B2BC6924-7463-415C-B6D9-4C70F380275A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2BC6924-7463-415C-B6D9-4C70F380275A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2BC6924-7463-415C-B6D9-4C70F380275A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{30CE362D-7DAF-4B86-982B-F74D5E815DBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30CE362D-7DAF-4B86-982B-F74D5E815DBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30CE362D-7DAF-4B86-982B-F74D5E815DBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30CE362D-7DAF-4B86-982B-F74D5E815DBE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
